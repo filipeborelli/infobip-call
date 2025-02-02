@@ -4,6 +4,7 @@ import { Phone, PhoneOff, Pause, Play, Mic, MicOff, Minimize2, Maximize2, X } fr
 // @ts-ignore
 import { createInfobipRtc ,InfobipRTC, CallsApiEvents, CallsApiEvent} from 'infobip-rtc';
 import { getToken } from './utils/api';
+// const InfobipRTC = InfobipRTCModule.default || InfobipRTCModule;
 
 function App() {
   const [phone, setPhone] = useState('');
@@ -18,7 +19,9 @@ function App() {
   const [position, setPosition] = useState({ x: window.innerWidth - 320, y: window.innerHeight - 400 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [audioSource, setAudioSource] = useState('');
   const phoneRef = useRef<HTMLDivElement>(null);
+  const remoteAudioRef : any= useRef<HTMLAudioElement>(null);
 
 
   const addEvent = useCallback((event: string) => {
@@ -26,7 +29,17 @@ function App() {
   }, []);
 
 
- 
+  useEffect(() => {
+    if (remoteAudioRef.current && audioSource) {
+      // `audioSource` deve ser um MediaStream
+      remoteAudioRef.current.srcObject = audioSource;
+      
+      // Em alguns navegadores pode ser preciso chamar play() manualmente.
+      remoteAudioRef.current
+        .play()
+        .catch((err:any) => console.error('Erro ao reproduzir áudio remoto:', err));
+    }
+  }, [audioSource]);
 
   useEffect(() => {
     getToken().then((response) => {
@@ -128,14 +141,17 @@ function App() {
       setIsMuted(false);
     } else {
       try {
-        const status = infobipRTC.setAudioInputDevice('default');
-        addEvent(`Audio input device set: ${status}`);
+        const audioInput = await infobipRTC.getAudioInputDevices();
+        console.log('Audio input devices:', audioInput);
+        addEvent(`Audio input device set:`);
         infobipRTC.connect();
         // preciso resolver essa parte da conexão do RTC
         await new Promise((resolve) => setTimeout(resolve, 2000));
         const call = infobipRTC.callPhone(phone);
 
-        call.on(CallsApiEvent.ESTABLISHED, () => {
+        call.on(CallsApiEvent.ESTABLISHED, (event: any) => {
+          setAudioSource(event.stream);
+          console.log(event.stream);
           addEvent('Call established');
           setIsCallActive(true);
         });
@@ -202,7 +218,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-4">
-      {/* Draggable Floating Softphone */}
+     <audio ref={remoteAudioRef} autoPlay controls style={{
+      display: 'none'
+     }} />
+
       <div
         ref={phoneRef}
         style={{
