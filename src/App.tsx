@@ -1,13 +1,30 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import InputMask from 'react-input-mask';
-import { Phone, PhoneOff, Pause, Play, Mic, MicOff, Minimize2, Maximize2, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import InputMask from "react-input-mask";
+import {
+  Phone,
+  PhoneOff,
+  Pause,
+  Play,
+  Mic,
+  MicOff,
+  Minimize2,
+  Maximize2,
+  X,
+} from "lucide-react";
 // @ts-ignore
-import { createInfobipRtc ,InfobipRTC, CallsApiEvents, CallsApiEvent} from 'infobip-rtc';
-import { getToken } from './utils/api';
+import {
+  createInfobipRtc,
+  InfobipRTC,
+  CallsApiEvents,
+  CallsApiEvent,
+  InfobipRTCEvent,
+  ApplicationCallOptions,
+} from "infobip-rtc";
+import { getToken } from "./utils/api";
 // const InfobipRTC = InfobipRTCModule.default || InfobipRTCModule;
 
 function App() {
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState("");
   const [events, setEvents] = useState<string[]>([]);
   const [isCallActive, setIsCallActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -16,28 +33,34 @@ function App() {
   const [infobipRTC, setInfobipRTC] = useState<InfobipRTC>();
   const [activeCall, setActiveCall] = useState<any>(null);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [position, setPosition] = useState({ x: window.innerWidth - 320, y: window.innerHeight - 400 });
+  const [position, setPosition] = useState({
+    x: window.innerWidth - 320,
+    y: window.innerHeight - 400,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [audioSource, setAudioSource] = useState('');
+  const [audioSource, setAudioSource] = useState("");
   const phoneRef = useRef<HTMLDivElement>(null);
-  const remoteAudioRef : any= useRef<HTMLAudioElement>(null);
-
+  const remoteAudioRef: any = useRef<HTMLAudioElement>(null);
 
   const addEvent = useCallback((event: string) => {
-    setEvents(prev => [...prev, `${new Date().toLocaleTimeString()} - ${event}`]);
+    setEvents((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()} - ${event}`,
+    ]);
   }, []);
-
 
   useEffect(() => {
     if (remoteAudioRef.current && audioSource) {
       // `audioSource` deve ser um MediaStream
       remoteAudioRef.current.srcObject = audioSource;
-      
+
       // Em alguns navegadores pode ser preciso chamar play() manualmente.
       remoteAudioRef.current
         .play()
-        .catch((err:any) => console.error('Erro ao reproduzir áudio remoto:', err));
+        .catch((err: any) =>
+          console.error("Erro ao reproduzir áudio remoto:", err)
+        );
     }
   }, [audioSource]);
 
@@ -46,22 +69,21 @@ function App() {
       if (response?.token) {
         const infobipRTC = createInfobipRtc(response.token, {
           debug: true,
-        })
-      
+        });
+
         setInfobipRTC(infobipRTC);
-        addEvent('InfobipRTC initialized');
+        addEvent("InfobipRTC initialized");
       } else {
-        addEvent('Error getting token');
+        addEvent("Error getting token");
       }
     });
-
   }, [addEvent]);
 
   useEffect(() => {
     let interval: number | undefined;
     if (isCallActive && !isPaused) {
       interval = window.setInterval(() => {
-        setCallDuration(prev => prev + 1);
+        setCallDuration((prev) => prev + 1);
       }, 1000);
     }
     return () => {
@@ -74,7 +96,7 @@ function App() {
       const rect = phoneRef.current.getBoundingClientRect();
       setDragOffset({
         x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+        y: e.clientY - rect.top,
       });
       setIsDragging(true);
     }
@@ -92,7 +114,7 @@ function App() {
 
         setPosition({
           x: Math.max(0, Math.min(newX, maxX)),
-          y: Math.max(0, Math.min(newY, maxY))
+          y: Math.max(0, Math.min(newY, maxY)),
         });
       }
     };
@@ -102,37 +124,36 @@ function App() {
     };
 
     if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
     }
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, dragOffset]);
 
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   };
 
   const handleKeypadPress = (digit: string) => {
     if (activeCall) {
       activeCall.sendDTMF(digit);
     }
-    setPhone(prev => prev + digit);
+    setPhone((prev) => prev + digit);
   };
 
   const handleCall = async () => {
-    if (!phone || !infobipRTC) return;
-    
+    if (!infobipRTC) return;
 
     if (isCallActive) {
       if (activeCall) {
         activeCall.hangup();
-        addEvent('Call ended');
+        addEvent("Call ended");
       }
       setIsCallActive(false);
       setActiveCall(null);
@@ -142,41 +163,70 @@ function App() {
     } else {
       try {
         const audioInput = await infobipRTC.getAudioInputDevices();
-        console.log('Audio input devices:', audioInput);
+        console.log("Audio input devices:", audioInput);
         addEvent(`Audio input device set:`);
         infobipRTC.connect();
+
+        infobipRTC.on(
+          InfobipRTCEvent.INCOMING_APPLICATION_CALL,
+          (event: any) => {
+            addEvent("Call chegou 1");
+            const call = event.incomingCall;
+            call.accept(ApplicationCallOptions.builder().build());
+
+            call.on(CallsApiEvent.ESTABLISHED, (event: any) => {
+              setAudioSource(event.stream);
+              console.log(event.stream);
+              addEvent("Call established");
+              setIsCallActive(true);
+            });
+
+            call.on(CallsApiEvent.HANGUP, () => {
+              addEvent("Call hung up");
+              setIsCallActive(false);
+              setActiveCall(null);
+              setCallDuration(0);
+              setIsPaused(false);
+              setIsMuted(false);
+            });
+
+            call.on(CallsApiEvent.ERROR, (error: any) => {
+              console.log("Error:", error);
+              addEvent(`Error: ${error.message}`);
+              setIsCallActive(false);
+              setActiveCall(null);
+              setCallDuration(0);
+              setIsPaused(false);
+              setIsMuted(false);
+            });
+
+            call.on(CallsApiEvent.RINGING, () => {
+              console.log("Call is ringing...");
+            });
+
+            setActiveCall(call);
+            addEvent("Initiating call...");
+          }
+        );
+        infobipRTC.on(InfobipRTCEvent.INCOMING_WEBRTC_CALL, (event: any) => {
+          addEvent("Call chegou 2");
+        });
+
+        infobipRTC.on(InfobipRTCEvent.CONNECTED, (event: any) => {
+          addEvent("TOCONECTADO");
+          console.log(infobipRTC.connectedUser());
+        });
         // preciso resolver essa parte da conexão do RTC
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const call = infobipRTC.callPhone(phone);
+        // await new Promise((resolve) => setTimeout(resolve, 2000));
+        // const call = infobipRTC.joinRoom('473180a6-cd8f-4c90-83c0-c534114a3491');
 
-        call.on(CallsApiEvent.ESTABLISHED, (event: any) => {
-          setAudioSource(event.stream);
-          console.log(event.stream);
-          addEvent('Call established');
-          setIsCallActive(true);
-        });
+        // call.on(CallsApiEvent.ROOM_JOINED, (event: any) => {
+        //   setAudioSource(event.stream);
+        //   console.log(event.participants);
+        // });
 
-        call.on(CallsApiEvent.HANGUP, () => {
-          addEvent('Call hung up');
-          setIsCallActive(false);
-          setActiveCall(null);
-          setCallDuration(0);
-          setIsPaused(false);
-          setIsMuted(false);
-        });
-
-        call.on(CallsApiEvent.ERROR, (error: any) => {
-          console.log('Error:', error);
-          addEvent(`Error: ${error.message}`);
-          setIsCallActive(false);
-          setActiveCall(null);
-          setCallDuration(0);
-          setIsPaused(false);
-          setIsMuted(false);
-        });
-
-        setActiveCall(call);
-        addEvent('Initiating call...');
+        // setActiveCall(call);
+        addEvent("Initiating call...");
       } catch (error) {
         addEvent(`Error initiating call: ${error}`);
       }
@@ -187,10 +237,10 @@ function App() {
     if (activeCall) {
       if (isPaused) {
         activeCall.resume();
-        addEvent('Call resumed');
+        addEvent("Call resumed");
       } else {
         activeCall.pause();
-        addEvent('Call paused');
+        addEvent("Call paused");
       }
       setIsPaused(!isPaused);
     }
@@ -200,37 +250,42 @@ function App() {
     if (activeCall) {
       if (isMuted) {
         activeCall.unmute();
-        addEvent('Call unmuted');
+        addEvent("Call unmuted");
       } else {
         activeCall.mute();
-        addEvent('Call muted');
+        addEvent("Call muted");
       }
       setIsMuted(!isMuted);
     }
   };
 
   const keypadButtons = [
-    ['1', '2', '3'],
-    ['4', '5', '6'],
-    ['7', '8', '9'],
-    ['*', '0', '#']
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"],
+    ["*", "0", "#"],
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-4">
-     <audio ref={remoteAudioRef} autoPlay controls style={{
-      display: 'none'
-     }} />
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        controls
+        style={{
+          display: "none",
+        }}
+      />
 
       <div
         ref={phoneRef}
         style={{
-          position: 'fixed',
+          position: "fixed",
           left: `${position.x}px`,
           top: `${position.y}px`,
           zIndex: 50,
-          width: isMinimized ? '48px' : '240px',
-          transition: isDragging ? 'none' : 'all 0.3s ease'
+          width: isMinimized ? "48px" : "240px",
+          transition: isDragging ? "none" : "all 0.3s ease",
         }}
       >
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -239,8 +294,12 @@ function App() {
             className="bg-purple-600 p-2 flex items-center justify-between cursor-move"
             onMouseDown={handleMouseDown}
           >
-            <h2 className={`text-white text-sm font-medium ${isMinimized ? 'hidden' : ''}`}>
-               Hyperflow
+            <h2
+              className={`text-white text-sm font-medium ${
+                isMinimized ? "hidden" : ""
+              }`}
+            >
+              Hyperflow
             </h2>
             <button
               onClick={() => setIsMinimized(!isMinimized)}
@@ -257,9 +316,9 @@ function App() {
                 <InputMask
                   style={{
                     flex: 1,
-                    height: '2.5rem',
-                    marginRight: '0.5rem',
-                    marginLeft: '0.5rem'
+                    height: "2.5rem",
+                    marginRight: "0.5rem",
+                    marginLeft: "0.5rem",
                   }}
                   mask="+99 99 99999-9999"
                   value={phone}
@@ -295,13 +354,13 @@ function App() {
                   onClick={handleCall}
                   style={{
                     flex: 1,
-                    height: '2.5rem',
-
+                    height: "2.5rem",
                   }}
-                  className={`flex-1 py-1 px-2 rounded flex items-center justify-center space-x-1 text-white font-medium text-xs transition-colors ${isCallActive
-                      ? 'bg-red-500 hover:bg-red-600'
-                      : 'bg-purple-500 hover:bg-purple-600'
-                    }`}
+                  className={`flex-1 py-1 px-2 rounded flex items-center justify-center space-x-1 text-white font-medium text-xs transition-colors ${
+                    isCallActive
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "bg-purple-500 hover:bg-purple-600"
+                  }`}
                 >
                   {isCallActive ? (
                     <>
@@ -322,15 +381,26 @@ function App() {
                       onClick={handlePauseResume}
                       className="p-1 rounded flex items-center justify-center text-white text-xs bg-yellow-500 hover:bg-yellow-600 transition-colors"
                     >
-                      {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                      {isPaused ? (
+                        <Play className="w-3 h-3" />
+                      ) : (
+                        <Pause className="w-3 h-3" />
+                      )}
                     </button>
 
                     <button
                       onClick={handleMute}
-                      className={`p-1 rounded flex items-center justify-center text-white text-xs transition-colors ${isMuted ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-500 hover:bg-green-600'
-                        }`}
+                      className={`p-1 rounded flex items-center justify-center text-white text-xs transition-colors ${
+                        isMuted
+                          ? "bg-gray-500 hover:bg-gray-600"
+                          : "bg-green-500 hover:bg-green-600"
+                      }`}
                     >
-                      {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                      {isMuted ? (
+                        <MicOff className="w-3 h-3" />
+                      ) : (
+                        <Mic className="w-3 h-3" />
+                      )}
                     </button>
                   </>
                 )}
@@ -343,8 +413,14 @@ function App() {
       {/* Events Log */}
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <img src="https://storage.sandbox.hyperflow.global/assets/logo.svg" alt="Hyperflow" className="h-8 mb-4" />
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Event Logs</h2>
+          <img
+            src="https://storage.sandbox.hyperflow.global/assets/logo.svg"
+            alt="Hyperflow"
+            className="h-8 mb-4"
+          />
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Event Logs
+          </h2>
           <div className="h-[calc(100vh-12rem)] overflow-y-auto space-y-2 bg-gray-50 p-4 rounded-lg">
             {events.map((event, index) => (
               <div

@@ -1,7 +1,7 @@
 import axios from 'axios';
 export const getToken = async () => {
-    const apiKey = "sua apikey aqui"
-    const baseUrl = "seu base url aqui";
+    const apiKey = ""
+    const baseUrl = "";
     let data = JSON.stringify({
         "identity": "Borelli",
         "displayName": "Filipe Borelli"
